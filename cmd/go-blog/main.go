@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pseudoerr/go-blog/internal/config"
+	"github.com/pseudoerr/go-blog/internal/db"
 )
 
 const (
@@ -20,7 +21,13 @@ func main() {
 	log.Info("starting go-blog", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	// Todo: init storage (postgres)
+	db, err := db.NewPostgresDB(cfg.DBURL)
+	if err != nil {
+		log.Error("failed to connect to db", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer db.Close()
+	log.Info("db connected")
 
 	// Todo: init router (gin)
 
