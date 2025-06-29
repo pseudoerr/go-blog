@@ -65,9 +65,8 @@ func (r *postRepository) GetPostByID(ctx context.Context, postID int64) (models.
 
 	return post, nil
 }
- 
 
-func (r *postRepository) ListPosts(ctx context.Context, userID int64, limit, offset int) ([]models.Post, error) {  
+func (r *postRepository) ListPosts(ctx context.Context, userID int64, limit, offset int) ([]models.Post, error) {
 	query := ` 
 		SELECT  
 			post_id,
@@ -80,42 +79,127 @@ func (r *postRepository) ListPosts(ctx context.Context, userID int64, limit, off
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
-	` 
-	rows, err := r.db.QueryContext(ctx, query, userID, limit, offset); if err != nil {
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID, limit, offset)
+	if err != nil {
 		return []models.Post{}, fmt.Errorf("ListPosts: %w", err)
-	}   
-	defer rows.Close() 
-	
-	var posts []model.Post 
+	}
+	defer rows.Close()
 
-	for rows.Next() {  
-		var p models.Post 
-		err := rows.Scan( 
-			&p.PostID, 
-			&p.UserID, 
-			&p.Body, 
-			&p.CreatedAt, 
-			&p.UpdatedAt, 
-		) 
+	var posts []models.Post
 
-		if err != nil { 
+	for rows.Next() {
+		var p models.Post
+		err := rows.Scan(
+			&p.PostID,
+			&p.UserID,
+			&p.Body,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+
+		if err != nil {
 			return nil, fmt.Errorf("ListPosts scan error: %w", err)
-		} 
+		}
 		posts = append(posts, p)
-	}  
+	}
 
-	if err := rows.Err(); err != nil { 
+	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("ListPosts rows error: %w", err)
-	} 
+	}
 
-	return posts, nil 
+	return posts, nil
 }
-	
-func (r *postRepository) UpdatePost(ctx context.Context, post models.Post) (models.Post, error) { 
-	query := ` 
-	SELECT `
 
+func (r *postRepository) UpdatePost(ctx context.Context, post models.Post) (models.Post, error) {
+	query := `  
+		UPDATE posts
+		SET title = $1,
+			body = $2,
+			updated_at = now()
+		WHERE post_id = $3
+		RETURNING post_id, user_id, title, body, created_at, updated_at
+	`
+	var updatedPost models.Post
 
+	err := r.db.QueryRowContext(ctx, query,
+		post.Title,
+		post.Body,
+		post.PostID,
+	).Scan(
+		&updatedPost,
+		&updatedPost.UserID,
+		&updatedPost.Title,
+		&updatedPost.Body,
+		&updatedPost.CreatedAt,
+		&updatedPost.UpdatedAt)
+
+	if err != nil {
+		return models.Post{}, fmt.Errorf("CreatePost: %w", err)
+	}
+
+	return updatedPost, nil
 }
-	DeletePost(ctx context.Context, postID int64) error
-	ListPostsByTag(ctx context.Context, tag string) ([]models.Post, error)
+
+func (r *postRepository) DeletePost(ctx context.Context, postID int64) error {
+	query := `
+	DELETE FROM posts
+    WHERE post_id = $1
+	`
+
+	res, err := r.db.ExecContext(ctx, query, postID)
+	if err != nil {
+		return fmt.Errorf("Delete post: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("DeletePost rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("DeletePost: no rows affected")
+	}
+
+	return nil
+}
+
+func (r *postRepository) ListPostsByTag(ctx context.Context, tag string, limit, offset int) ([]models.Post, error) {
+	query := `
+        SELECT p.post_id, p.user_id, p.title, p.body, p.created_at, p.updated_at
+        FROM posts p
+        JOIN post_tags pt ON p.post_id = pt.post_id
+        JOIN tags t ON pt.tag_id = t.id
+        WHERE t.name = $1
+        ORDER BY p.created_at DESC
+        LIMIT $2 OFFSET $3
+    `
+
+	rows, err := r.db.QueryContext(ctx, query, tag, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("ListPostsByTag: %w", err)
+	}
+	defer rows.Close()
+
+	var posts []models.Post
+	for rows.Next() {
+		var p models.Post
+		err := rows.Scan(
+			&p.PostID,
+			&p.UserID,
+			&p.Title,
+			&p.Body,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ListPostsByTag scan: %w", err)
+		}
+		posts = append(posts, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListPostsByTag rows: %w", err)
+	}
+
+	return posts, nil
+}
