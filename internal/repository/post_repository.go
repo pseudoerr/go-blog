@@ -3,16 +3,18 @@ package repository
 import (
 	"context"
 	"database/sql"
+
 	"fmt"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/pseudoerr/go-blog/internal/models"
 )
 
 type postRepository struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
-func NewPostRepository(db *sql.DB) PostRepository {
+func NewPostRepository(db *sqlx.DB) PostRepository {
 	return &postRepository{
 		db: db,
 	}
@@ -27,11 +29,11 @@ func (r *postRepository) CreatePost(ctx context.Context, post models.Post) (mode
 	`
 
 	var created_at, updated_at sql.NullTime
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRowxContext(ctx, query,
 		post.UserID,
 		post.Title,
 		post.Body,
-	).Scan(&post.UserID, &created_at, &updated_at)
+	).StructScan(&post)
 	if err != nil {
 		return models.Post{}, fmt.Errorf("CreatePost: %w", err)
 	}
@@ -48,7 +50,7 @@ func (r *postRepository) GetPostByID(ctx context.Context, postID int64) (models.
 		WHERE post_id = $1
 	`
 	var post models.Post
-	err := r.db.QueryRowContext(ctx, query, postID).Scan(
+	err := r.db.QueryRowxContext(ctx, query, postID).Scan(
 		&post.PostID,
 		&post.UserID,
 		&post.Title,
@@ -122,18 +124,11 @@ func (r *postRepository) UpdatePost(ctx context.Context, post models.Post) (mode
 	`
 	var updatedPost models.Post
 
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRowxContext(ctx, query,
 		post.Title,
 		post.Body,
 		post.PostID,
-	).Scan(
-		&updatedPost,
-		&updatedPost.UserID,
-		&updatedPost.Title,
-		&updatedPost.Body,
-		&updatedPost.CreatedAt,
-		&updatedPost.UpdatedAt)
-
+	).StructScan(&updatedPost)
 	if err != nil {
 		return models.Post{}, fmt.Errorf("CreatePost: %w", err)
 	}

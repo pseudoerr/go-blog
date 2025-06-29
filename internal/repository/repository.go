@@ -2,8 +2,9 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 
+	"github.com/gofrs/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/pseudoerr/go-blog/internal/models"
 )
 
@@ -25,7 +26,7 @@ type TagRepository interface {
 type UserRepository interface {
 	CreateUser(ctx context.Context, username string, hashedPassword string) (models.User, error)
 	GetUserByUsername(ctx context.Context, username string) (models.User, error)
-	GetUserByID(ctx context.Context, userID int64) (models.User, error)
+	GetUserByID(ctx context.Context, userID uuid.UUID) (models.User, error)
 }
 
 type Repository struct {
@@ -34,10 +35,10 @@ type Repository struct {
 	UserRepository
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{
 		PostRepository: NewPostRepository(db),
-		TagRepository:  // Todo: init NewTagRepository(db)
-		UserRepository: // Todo: init  NewUserRepository(db)
+		TagRepository:  NewTagRepository(db),
+		UserRepository: NewUserRepository(db),
 	}
 }
